@@ -75,15 +75,13 @@ public class SecurityController {
         session.setExpiration(new Date(System.currentTimeMillis() + expiration));
         session.setUser(theActualUser); // ya la asocias aquí
         this.theSessionRepository.save(session);
-
-        String codigo2fa = "12345";
         String email = theActualUser.getEmail();
         String subjet = "Codigo de autenticacion";
         String nameUser = theActualUser.getName();
 
 
         //enviando correo con texto Html
-        String contenidoHtml =String.format("<html><body><h1>Hola %s</h1><p>Este es tu codigo %s </p></body></html>",nameUser, codigo2fa);
+        String contenidoHtml =String.format("<html><body><h1>Hola %s</h1><p>Este es tu codigo %s </p></body></html>",nameUser, codigo);
         theNotificationService.sendHTMLEmail(email,subjet,contenidoHtml);
         theResponse.put("message", "Se envió el código a tu correo");
         theResponse.put("sessionId", session.get_id());
