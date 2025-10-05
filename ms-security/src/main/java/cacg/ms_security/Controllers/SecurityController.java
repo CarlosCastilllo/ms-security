@@ -1,9 +1,11 @@
 package cacg.ms_security.Controllers;
 
 import cacg.ms_security.Models.Permission;
+import cacg.ms_security.Models.Session;
 import cacg.ms_security.Models.User;
 import cacg.ms_security.Models.UserLogin;
 import cacg.ms_security.Repositories.UserRepository;
+import cacg.ms_security.Repositories.SessionRepository;
 import cacg.ms_security.Services.EncryptionService;
 import cacg.ms_security.Services.JwtService;
 import cacg.ms_security.Services.NotificationService;
@@ -11,10 +13,12 @@ import cacg.ms_security.Services.ValidatorsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.HashMap;
 
 @CrossOrigin
@@ -30,8 +34,13 @@ public class SecurityController {
     private JwtService theJwtService;
     @Autowired
     private NotificationService theNotificationService;
+    @Autowired
+    private SessionRepository theSessionRepository;
 
     private ValidatorsService theValidatorsService;
+
+    @Value("${jwt.expiration}")
+    private Long expiration;
 
     @PostMapping("permissions-validation")
     public boolean permissionsValidation(final HttpServletRequest request,
@@ -58,23 +67,75 @@ public class SecurityController {
         //despues guardar el codigo en el code2fa de la sesion del usuario
         // enviar codigo
 
+        String codigo = String.format("%06d", (int)(Math.random()*999999));
 
-        String codigo = "12345";
+        // Crear sesión
+        Session session = new Session();
+        session.setCode2FA(codigo);
+        session.setExpiration(new Date(System.currentTimeMillis() + expiration));
+        session.setUser(theActualUser); // ya la asocias aquí
+        this.theSessionRepository.save(session);
+
+        String codigo2fa = "12345";
         String email = theActualUser.getEmail();
         String subjet = "Codigo de autenticacion";
         String nameUser = theActualUser.getName();
 
-        //enviando correo con texto plano
-        theNotificationService.send2FAemail(email,subjet,codigo);
+
         //enviando correo con texto Html
-        String contenidoHtml =String.format("<html><body><h1>Hola %s</h1><p>Este es tu codigo %s </p></body></html>",nameUser, codigo);
+        String contenidoHtml =String.format("<html><body><h1>Hola %s</h1><p>Este es tu codigo %s </p></body></html>",nameUser, codigo2fa);
         theNotificationService.sendHTMLEmail(email,subjet,contenidoHtml);
+        theResponse.put("message", "Se envió el código a tu correo");
+        theResponse.put("sessionId", session.get_id());
         return  theResponse;
 
     }
 
 
     @PostMapping("validate2fa")
+    public HashMap<String,Object> validate2fa(@RequestBody HashMap<String,String> data,
+                                              final HttpServletResponse response)throws IOException {
+        HashMap<String,Object> theResponse=new HashMap<>();
+
+        String email = data.get("email");
+        String code2FA = data.get("code2FA");
+        String sessionId = data.get("sessionId");
+
+        User theActualUser = this.theUserRepository.getUserByEmail(email);
+
+        if (theActualUser == null) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Usuario no encontrado");
+            return theResponse;
+        }
+
+        Session session = this.theSessionRepository.findById(sessionId).orElse(null);
+
+        if (session == null || session.getUser() == null) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Sesión inválida");
+            return theResponse;
+        }
+
+        if (session.getUser().get_id().equals(theActualUser.get_id())
+                && session.getCode2FA().equals(code2FA)
+                && session.getExpiration().after(new Date())) {
+
+            String token = theJwtService.generateToken(theActualUser);
+            session.setToken(token);
+            this.theSessionRepository.save(session);
+
+            theActualUser.setPassword(""); // no exponer password
+
+            theResponse.put("token", token);
+            theResponse.put("user", theActualUser);
+            return theResponse;
+        } else {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Código inválido o expirado");
+            return theResponse;
+        }
+    }
+
+
+    @PostMapping("validate2faantiguo")
     public HashMap<String,Object>validate2fa(@RequestBody UserLogin userLogin,
                                         final HttpServletResponse response)throws IOException {
         HashMap<String,Object> theResponse=new HashMap<>();
