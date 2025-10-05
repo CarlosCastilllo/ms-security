@@ -15,9 +15,11 @@ public class AuthController {
 
     private final UserRepository userRepository;
 
+
     public AuthController(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
+
 
     @PostMapping("/firebase-login")
     public FirebaseUserResponse loginConFirebase(@RequestHeader("Authorization") String authHeader) throws FirebaseAuthException {
