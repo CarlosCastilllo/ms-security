@@ -1,6 +1,5 @@
 package cacg.ms_security.Services;
 
-
 import cacg.ms_security.Models.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
@@ -10,18 +9,53 @@ import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import javax.annotation.PostConstruct;
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+
 @Service
 public class JwtService {
     @Value("${jwt.secret}")
-    private String secret; // Esta es la clave secreta que se utiliza para firmar el token. Debe mantenerse segura.
+    private String secret;
 
     @Value("${jwt.expiration}")
-    private Long expiration; // Tiempo de expiración del token en milisegundos.
-    private Key secretKey = Keys.secretKeyFor(SignatureAlgorithm.HS512);
+    private Long expiration;
+
+    private Key secretKey;
+    private SignatureAlgorithm algorithm;
+
+    @PostConstruct
+    public void init() {
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        int keyLength = keyBytes.length;
+
+        System.out.println("🔑 Inicializando JWT Service...");
+        System.out.println("📏 Longitud de la clave: " + keyLength + " bytes");
+
+        if (keyLength >= 64) {
+            // Clave suficientemente larga para HS512 (512 bits = 64 bytes)
+            this.algorithm = SignatureAlgorithm.HS512;
+            this.secretKey = Keys.hmacShaKeyFor(keyBytes);
+            System.out.println("✅ Usando algoritmo HS512");
+        } else if (keyLength >= 32) {
+            // Clave suficiente para HS256 (256 bits = 32 bytes)
+            this.algorithm = SignatureAlgorithm.HS256;
+            this.secretKey = Keys.hmacShaKeyFor(keyBytes);
+            System.out.println("⚠️ Clave corta, usando algoritmo HS256");
+            System.out.println("💡 Recomendación: Use una clave de al menos 64 caracteres para HS512");
+        } else {
+            // Clave demasiado corta
+            throw new IllegalArgumentException(
+                    "❌ ERROR CRÍTICO: jwt.secret debe tener al menos 32 caracteres. " +
+                            "Longitud actual: " + keyLength + " bytes. " +
+                            "Por favor, actualice su application.properties con una clave más larga."
+            );
+        }
+    }
 
     public String generateToken(User theUser) {
         Date now = new Date();
@@ -36,9 +70,10 @@ public class JwtService {
                 .setSubject(theUser.getName())
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
-                .signWith(secretKey)
+                .signWith(secretKey, algorithm)
                 .compact();
     }
+
     public boolean validateToken(String token) {
         try {
             Jws<Claims> claimsJws = Jwts.parserBuilder()
@@ -46,18 +81,23 @@ public class JwtService {
                     .build()
                     .parseClaimsJws(token);
 
-            // Verifica la expiración del token
             Date now = new Date();
             if (claimsJws.getBody().getExpiration().before(now)) {
+                System.out.println("❌ Token expirado");
                 return false;
             }
 
+            System.out.println("✅ Token válido");
             return true;
         } catch (SignatureException ex) {
-            // La firma del token es inválida
+            System.err.println("❌ Firma del token inválida: " + ex.getMessage());
+            System.err.println("💡 Posibles causas:");
+            System.err.println("   1. La clave jwt.secret cambió después de generar el token");
+            System.err.println("   2. El token fue generado por otra aplicación");
+            System.err.println("   3. El token fue modificado manualmente");
             return false;
         } catch (Exception e) {
-            // Otra excepción
+            System.err.println("❌ Error validando token: " + e.getMessage());
             return false;
         }
     }
@@ -77,10 +117,8 @@ public class JwtService {
             user.setEmail((String) claims.get("email"));
             return user;
         } catch (Exception e) {
-            // En caso de que el token sea inválido o haya expirado
+            System.err.println("❌ Error extrayendo usuario del token: " + e.getMessage());
             return null;
         }
     }
-
-
 }

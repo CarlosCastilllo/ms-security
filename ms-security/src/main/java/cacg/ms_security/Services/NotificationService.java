@@ -48,6 +48,10 @@ public class NotificationService {
         body.put("to", to);
         body.put("subject", subject);
         body.put("html_content", htmlContent);
+        System.out.print(sender);
+        System.out.println(to);
+        System.out.println(subject);
+        System.out.println(htmlContent);
 
         return requestHTTPService.sendPost(endpoint, body, null);
     }

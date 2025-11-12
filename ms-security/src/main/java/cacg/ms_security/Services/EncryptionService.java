@@ -7,6 +7,9 @@ import java.security.NoSuchAlgorithmException;
 
 @Service
 public class EncryptionService {
+
+
+
     public String convertSHA256(String password) {
         MessageDigest md = null;
         try {

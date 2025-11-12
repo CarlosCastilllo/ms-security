@@ -78,6 +78,7 @@ public class SecurityController {
         String email = theActualUser.getEmail();
         String subjet = "Codigo de autenticacion";
         String nameUser = theActualUser.getName();
+        System.out.println(codigo);
 
 
         //enviando correo con texto Html

@@ -10,7 +10,7 @@ import java.util.Optional;
 
 @CrossOrigin
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/public/auth")
 public class AuthController {
 
     private final UserRepository userRepository;
@@ -24,6 +24,7 @@ public class AuthController {
     @PostMapping("/firebase-login")
     public FirebaseUserResponse loginConFirebase(@RequestHeader("Authorization") String authHeader) throws FirebaseAuthException {
         String token = authHeader.replace("Bearer ", "");
+
 
         // 1. Verificar token de Firebase
         FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(token);

@@ -34,4 +34,18 @@ public class PermissionsController {
             this.thePermissionRepository.delete(thePermission);
         }
     }
+    @PutMapping("{id}")
+    public Permission update(@PathVariable String id, @RequestBody Permission newPermission) {
+        Permission actualPermission = this.thePermissionRepository.findById(id).orElse(null);
+        if (actualPermission != null) {
+            actualPermission.setUrl(newPermission.getUrl());
+            actualPermission.setMethod(newPermission.getMethod());
+            this.thePermissionRepository.save(actualPermission);
+            return actualPermission;
+        } else {
+            return null;
+        }
+    }
+
+
 }
